@@ -5,3 +5,8 @@ Umbrella repo for:
 2. FlorisBoard fork as a Git submodule in `florisboard/`
 
 This project is the LAN-sync experiment while keeping the ADB workflow as fallback.
+
+Protocol docs:
+
+- `docs/protocol/v1/spec.md`
+- `docs/protocol/v1/message.schema.json`

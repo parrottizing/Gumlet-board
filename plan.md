@@ -24,27 +24,27 @@
 - [ ] Keep reliability tradeoff explicit: Mode A now, Mode B optional later.
 
 ## Phase 1: Protocol and Data Contract
-- [ ] Add versioned protocol spec doc under `docs/`.
-- [ ] Define message envelope fields:
-  - [ ] `protocol_version`
-  - [ ] `device_id`
-  - [ ] `event_id`
-  - [ ] `source`
-  - [ ] `event_type`
-  - [ ] `created_at_ms`
-  - [ ] `payload_hash`
-- [ ] Define auth transport for token (header/handshake).
-- [ ] Define payload schema for text.
-- [ ] Define payload schema for images (v2).
-- [ ] Define ACK/retry semantics and backoff behavior.
-- [ ] Define dedupe and feedback-loop prevention rules.
-- [ ] Define error codes:
-  - [ ] auth failure
-  - [ ] payload too large
-  - [ ] unsupported type
-  - [ ] stale event
-- [ ] Define protocol version compatibility strategy.
-- [ ] Exit check: both Android and Mac implementations can use one shared spec.
+- [x] Add versioned protocol spec doc under `docs/`.
+- [x] Define message envelope fields:
+  - [x] `protocol_version`
+  - [x] `device_id`
+  - [x] `event_id`
+  - [x] `source`
+  - [x] `event_type`
+  - [x] `created_at_ms`
+  - [x] `payload_hash`
+- [x] Define auth transport for token (header/handshake).
+- [x] Define payload schema for text.
+- [x] Define payload schema for images (v2).
+- [x] Define ACK/retry semantics and backoff behavior.
+- [x] Define dedupe and feedback-loop prevention rules.
+- [x] Define error codes:
+  - [x] auth failure
+  - [x] payload too large
+  - [x] unsupported type
+  - [x] stale event
+- [x] Define protocol version compatibility strategy.
+- [x] Exit check: both Android and Mac implementations can use one shared spec.
 
 ## Phase 2: Mac Bridge Refactor (ADB script -> LAN daemon)
 - [ ] Split `mac_bridge/sync_clipboard_adb_reference.py` into modules:

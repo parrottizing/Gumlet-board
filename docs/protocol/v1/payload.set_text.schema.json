@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gumlet-board.local/docs/protocol/v1/payload.set_text.schema.json",
+  "title": "LAN Clipboard Protocol v1 set_text payload",
+  "type": "object",
+  "required": [
+    "mime_type",
+    "text"
+  ],
+  "properties": {
+    "mime_type": {
+      "const": "text/plain"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 262144
+    },
+    "is_sensitive": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 128
+    }
+  },
+  "additionalProperties": true
+}
+
