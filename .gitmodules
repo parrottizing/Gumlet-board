@@ -1,0 +1,3 @@
+[submodule "florisboard"]
+	path = florisboard
+	url = https://github.com/parrottizing/florisboard.git
