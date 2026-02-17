@@ -66,20 +66,20 @@
 - [x] Exit check: Mac daemon syncs text with simulated client and survives reconnects.
 
 ## Phase 3: Floris Networking Foundation
-- [ ] Add required manifest permissions/config for LAN mode.
-- [ ] Add prefs in `AppPrefs` for:
-  - [ ] enable LAN sync
-  - [ ] host/port
-  - [ ] pairing token
-  - [ ] auto-reconnect
-- [ ] Implement LAN client manager:
-  - [ ] connect/disconnect lifecycle
-  - [ ] exponential backoff
-  - [ ] heartbeat/ping
-  - [ ] connection status flow
-- [ ] Implement mDNS discovery client.
-- [ ] Add endpoint selection and manual override.
-- [ ] Initialize manager from app layer.
+- [x] Add required manifest permissions/config for LAN mode.
+- [x] Add prefs in `AppPrefs` for:
+  - [x] enable LAN sync
+  - [x] host/port
+  - [x] pairing token
+  - [x] auto-reconnect
+- [x] Implement LAN client manager:
+  - [x] connect/disconnect lifecycle
+  - [x] exponential backoff
+  - [x] heartbeat/ping
+  - [x] connection status flow
+- [x] Implement mDNS discovery client.
+- [x] Add endpoint selection and manual override.
+- [x] Initialize manager from app layer.
 - [ ] Exit check: Floris connects to daemon and exchanges ping/pong.
 
 ## Phase 4: Clipboard Outbound (Android -> Mac)
@@ -147,12 +147,12 @@
 
 ## File-Level Change Checklist
 ### Floris side
-- [ ] `florisboard/app/src/main/AndroidManifest.xml`
-- [ ] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/FlorisApplication.kt`
+- [x] `florisboard/app/src/main/AndroidManifest.xml`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/FlorisApplication.kt`
 - [ ] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt`
-- [ ] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/AppPrefs.kt`
-- [ ] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/settings/clipboard/ClipboardScreen.kt`
-- [ ] New LAN sync package under `ime/clipboard/`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/AppPrefs.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/settings/clipboard/ClipboardScreen.kt`
+- [x] New LAN sync package under `ime/clipboard/`
 
 ### Mac side
 - [x] `mac_bridge/sync_clipboard_adb_reference.py` refactor
