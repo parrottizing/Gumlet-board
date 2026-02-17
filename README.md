@@ -10,3 +10,4 @@ Protocol docs:
 
 - `docs/protocol/v1/spec.md`
 - `docs/protocol/v1/message.schema.json`
+- `docs/mac_bridge_phase2.md`

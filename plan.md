@@ -47,23 +47,23 @@
 - [x] Exit check: both Android and Mac implementations can use one shared spec.
 
 ## Phase 2: Mac Bridge Refactor (ADB script -> LAN daemon)
-- [ ] Split `mac_bridge/sync_clipboard_adb_reference.py` into modules:
-  - [ ] clipboard I/O
-  - [ ] event normalization
-  - [ ] transport
-- [ ] Add WebSocket LAN server runtime.
-- [ ] Add token validation in connection/session flow.
-- [ ] Track active device sessions.
-- [ ] Add mDNS advertisement with stable service identity.
-- [ ] Keep explicit runtime mode switch:
-  - [ ] `--mode=adb`
-  - [ ] `--mode=lan`
-- [ ] Add local state store for:
-  - [ ] paired devices
-  - [ ] token
-  - [ ] last hashes/event IDs per device
-- [ ] Add structured logs + rotation.
-- [ ] Exit check: Mac daemon syncs text with simulated client and survives reconnects.
+- [x] Split `mac_bridge/sync_clipboard_adb_reference.py` into modules:
+  - [x] clipboard I/O
+  - [x] event normalization
+  - [x] transport
+- [x] Add WebSocket LAN server runtime.
+- [x] Add token validation in connection/session flow.
+- [x] Track active device sessions.
+- [x] Add mDNS advertisement with stable service identity.
+- [x] Keep explicit runtime mode switch:
+  - [x] `--mode=adb`
+  - [x] `--mode=lan`
+- [x] Add local state store for:
+  - [x] paired devices
+  - [x] token
+  - [x] last hashes/event IDs per device
+- [x] Add structured logs + rotation.
+- [x] Exit check: Mac daemon syncs text with simulated client and survives reconnects.
 
 ## Phase 3: Floris Networking Foundation
 - [ ] Add required manifest permissions/config for LAN mode.
@@ -155,12 +155,12 @@
 - [ ] New LAN sync package under `ime/clipboard/`
 
 ### Mac side
-- [ ] `mac_bridge/sync_clipboard_adb_reference.py` refactor
-- [ ] New LAN modules under `mac_bridge/`
-- [ ] `mac_bridge/requirements_base.txt` updates (if new deps)
+- [x] `mac_bridge/sync_clipboard_adb_reference.py` refactor
+- [x] New LAN modules under `mac_bridge/`
+- [x] `mac_bridge/requirements_base.txt` updates (if new deps)
 
 ### Docs
-- [ ] Add protocol/runbook docs under `docs/`.
+- [x] Add protocol/runbook docs under `docs/`.
 
 ## v1 Acceptance Checklist
 - [ ] Android -> Mac text sync <= 1.5s on same Wi-Fi.
