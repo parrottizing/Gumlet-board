@@ -83,11 +83,11 @@
 - [ ] Exit check: Floris connects to daemon and exchanges ping/pong.
 
 ## Phase 4: Clipboard Outbound (Android -> Mac)
-- [ ] Hook `onPrimaryClipChanged()` for outbound sync.
-- [ ] Restrict outbound types to current phase scope.
-- [ ] Normalize clipboard data to protocol payload.
-- [ ] Apply privacy filter behavior per settings.
-- [ ] Add loop guard for remote-origin clips.
+- [x] Hook `onPrimaryClipChanged()` for outbound sync.
+- [x] Restrict outbound types to current phase scope.
+- [x] Normalize clipboard data to protocol payload.
+- [x] Apply privacy filter behavior per settings.
+- [x] Add loop guard for remote-origin clips.
 - [ ] Exit check: Android text copy reaches Mac within latency target.
 
 ## Phase 5: Clipboard Inbound (Mac -> Android)
@@ -149,7 +149,7 @@
 ### Floris side
 - [x] `florisboard/app/src/main/AndroidManifest.xml`
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/FlorisApplication.kt`
-- [ ] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt`
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/AppPrefs.kt`
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/settings/clipboard/ClipboardScreen.kt`
 - [x] New LAN sync package under `ime/clipboard/`
