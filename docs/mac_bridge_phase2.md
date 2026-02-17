@@ -52,3 +52,22 @@ python3 -m unittest discover -s mac_bridge/tests -p "test_*.py" -v
 
 `test_lan_runtime.py` starts the LAN daemon, sends text from a simulated client, disconnects, reconnects, and verifies sync still succeeds.
 
+## Phase 3 One-Command Smoke Check
+
+Run from repo root:
+
+```bash
+./mac_bridge/phase3_smoke.sh
+```
+
+What it verifies:
+- starts LAN daemon in a temporary runtime dir
+- validates `/healthz`
+- performs a real websocket connect + `ping` -> `pong`
+- asserts daemon JSON logs contain `daemon.start`, `session.connected`, `session.disconnected`
+
+Optional: keep artifacts/logs after run:
+
+```bash
+KEEP_ARTIFACTS=1 ./mac_bridge/phase3_smoke.sh
+```
