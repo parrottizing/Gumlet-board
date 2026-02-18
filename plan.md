@@ -80,7 +80,7 @@
 - [x] Implement mDNS discovery client.
 - [x] Add endpoint selection and manual override.
 - [x] Initialize manager from app layer.
-- [ ] Exit check: Floris connects to daemon and exchanges ping/pong.
+- [x] Exit check: Floris connects to daemon and exchanges ping/pong.
 
 ## Phase 4: Clipboard Outbound (Android -> Mac)
 - [x] Hook `onPrimaryClipChanged()` for outbound sync.
@@ -88,15 +88,15 @@
 - [x] Normalize clipboard data to protocol payload.
 - [x] Apply privacy filter behavior per settings.
 - [x] Add loop guard for remote-origin clips.
-- [ ] Exit check: Android text copy reaches Mac within latency target.
+- [x] Exit check: Android text copy reaches Mac within latency target.
 
 ## Phase 5: Clipboard Inbound (Mac -> Android)
-- [ ] Handle incoming `set_text` events.
-- [ ] Convert payload to Floris `ClipboardItem`.
-- [ ] Apply using `updatePrimaryClip(...)`.
-- [ ] Respect Floris history and sync preferences.
-- [ ] Add event ID + hash dedupe ring buffer.
-- [ ] Exit check: Mac text copy reaches Android without ping-pong loops.
+- [x] Handle incoming `set_text` events.
+- [x] Convert payload to Floris `ClipboardItem`.
+- [x] Apply using `updatePrimaryClip(...)`.
+- [x] Respect Floris history and sync preferences.
+- [x] Add event ID + hash dedupe ring buffer.
+- [x] Exit check: Mac text copy reaches Android without ping-pong loops.
 
 ## Phase 6: Reliability and Lifecycle
 - [ ] Implement Mode A reliably (IME lifecycle-managed connection).
