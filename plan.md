@@ -2,7 +2,8 @@
 
 ## Objective
 - [ ] Ship reliable LAN clipboard sync between FlorisBoard (Android) and macOS.
-- [ ] v1 deliverable: text clipboard sync in both directions.
+- [ ] v0.1 deliverable: text clipboard sync in both directions (manual token setup).
+- [ ] v1 deliverable: automated first-time pairing + hardened text sync UX.
 - [ ] v2 deliverable: image clipboard sync in both directions.
 - [ ] Keep existing ADB flow available as fallback.
 
@@ -170,7 +171,7 @@
 - [ ] User can disable LAN sync instantly from settings.
 - [ ] ADB fallback remains functional.
 
-## Post-v0.1 Security Upgrade Backlog
+## v1 (Post-v0.1) Security and Pairing Upgrade Backlog
 - [ ] Move from WS to WSS (TLS).
 - [ ] Add certificate pinning on Android client.
 - [ ] Replace long static token with short-lived pairing code flow.
@@ -179,7 +180,7 @@
 - [ ] Redact sensitive payloads from logs by default.
 - [ ] Add auth/version negotiation to reduce downgrade risk.
 
-## Recommended First Ship (v1)
+## Recommended First Ship (v0.1)
 - [ ] Text-only LAN sync.
 - [ ] mDNS discovery + manual host/port fallback.
 - [ ] Reliability Mode A.
