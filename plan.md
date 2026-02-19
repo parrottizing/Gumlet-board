@@ -10,7 +10,10 @@
 ## Locked Decisions (already finalized)
 - [x] v0.1 scope is text-only sync.
 - [x] Final product scope is text + image sync.
-- [x] v0.1 reliability mode is Mode A (no persistent foreground notification).
+- [x] Reliability mode default is Mode B always-on, with Mode A kept as an opt-out fallback.
+- [x] Mode B runs as a foreground service with `connectedDevice` type and persistent system notification.
+- [x] Mode B autostarts on `BOOT_COMPLETED`, `USER_UNLOCKED`, and `MY_PACKAGE_REPLACED`.
+- [x] LAN socket should remain eligible while device is locked (no lock-gated disconnect).
 - [x] v0.1 security mode is token auth, with planned upgrade later.
 - [x] Setup UX is auto-discovery first, with manual host entry fallback.
 - [x] Network scope is same-LAN only.
@@ -22,7 +25,7 @@
 - [ ] Account for Android background clipboard restrictions.
 - [ ] Ensure clipboard sync works reliably when Floris is active/default IME.
 - [ ] Treat internet/network permissions as explicit product/privacy scope changes.
-- [ ] Keep reliability tradeoff explicit: Mode A now, Mode B optional later.
+- [x] Keep reliability tradeoff explicit: Mode B default for seamless sync, Mode A optional fallback to avoid persistent notification.
 
 ## Phase 1: Protocol and Data Contract
 - [x] Add versioned protocol spec doc under `docs/`.
@@ -100,14 +103,25 @@
 - [x] Exit check: Mac text copy reaches Android without ping-pong loops.
 
 ## Phase 6: Reliability and Lifecycle
-- [x] Implement Mode A reliably (IME lifecycle-managed connection).
+- [x] Implement Mode A reliably (IME lifecycle-managed connection) as optional fallback.
+- [x] Implement Mode B always-on runtime with foreground service (`connectedDevice` type).
+- [x] Add reliability mode preference (default `MODE_B_ALWAYS_ON`) and settings UI selector.
 - [x] Handle lifecycle transitions:
   - [x] screen lock/unlock
   - [x] network changes
   - [x] process restart
+- [x] Add autostart triggers:
+  - [x] `BOOT_COMPLETED`
+  - [x] `USER_UNLOCKED`
+  - [x] `MY_PACKAGE_REPLACED`
 - [x] Add safe degradation UX:
   - [x] disconnected status
   - [x] manual reconnect action
+- [x] Add ongoing Mode B notification UX:
+  - [x] status updates from connection state flow
+  - [x] action to open clipboard settings
+  - [x] action to reconnect now
+- [x] Remove lock-gated disconnect so lock/unlock does not require keyboard UI reopening.
 - [x] Exit check: connection auto-recovers after routine disruptions.
 
 ## Phase 7: Image Sync (v2)
@@ -153,6 +167,10 @@
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt`
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/AppPrefs.kt`
 - [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/app/settings/clipboard/ClipboardScreen.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/lan/LanClipboardReliabilityMode.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/lan/LanClipboardForegroundService.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/lan/LanClipboardForegroundController.kt`
+- [x] `florisboard/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/lan/LanClipboardAutostartReceiver.kt`
 - [x] New LAN sync package under `ime/clipboard/`
 
 ### Mac side
@@ -183,5 +201,5 @@
 ## Recommended First Ship (v0.1)
 - [ ] Text-only LAN sync.
 - [ ] mDNS discovery + manual host/port fallback.
-- [ ] Reliability Mode A.
+- [ ] Reliability Mode B default (persistent notification) with Mode A fallback option.
 - [ ] ADB fallback retained.
