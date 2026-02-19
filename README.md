@@ -11,3 +11,13 @@ Protocol docs:
 - `docs/protocol/v1/spec.md`
 - `docs/protocol/v1/message.schema.json`
 - `docs/mac_bridge_phase2.md`
+
+Pairing:
+
+- One-time QR pairing is available in LAN mode (scan QR -> auto-configure host/port/token).
+
+Run LAN bridge:
+
+```bash
+./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --mode=lan
+```

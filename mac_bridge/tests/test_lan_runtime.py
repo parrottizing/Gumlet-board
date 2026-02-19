@@ -9,7 +9,11 @@ import socket
 import sys
 import tempfile
 import unittest
+from http import HTTPStatus
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.parse import quote
+from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -60,8 +64,87 @@ class TransformingClipboardBackend:
         )
 
 
+def _http_get_status_and_body(url: str) -> tuple[int, str]:
+    with urlopen(url, timeout=2) as response:
+        body = response.read().decode("utf-8")
+        return int(response.status), body
+
+
+def _http_get_error_status(url: str) -> int:
+    try:
+        _http_get_status_and_body(url)
+    except HTTPError as exc:
+        # Ensure the error response body is consumed/closed.
+        _ = exc.read()
+        status = int(exc.code)
+        exc.close()
+        return status
+    raise AssertionError("Expected HTTPError")
+
+
 @unittest.skipUnless(WEBSOCKETS_AVAILABLE, "websockets is required for LAN runtime tests")
 class LanRuntimeReconnectTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pairing_code_redeem_is_single_use(self) -> None:
+        logger = logging.getLogger("lan-runtime-test-pairing")
+        logger.addHandler(logging.NullHandler())
+        clipboard = InMemoryClipboardBackend()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "state.json"
+            store = StateStore(state_path, logger=logger)
+            store.set_token("phase8-test-token")
+
+            port = _pick_free_port()
+            server = LanClipboardServer(
+                host="127.0.0.1",
+                port=port,
+                path="/v1/clipboard",
+                state_store=store,
+                clipboard=clipboard,
+                logger=logger,
+                advertise_mdns=False,
+                poll_interval=0.05,
+                pairing_enabled=True,
+            )
+            offer = server.issue_pairing_offer()
+            self.assertIsNotNone(offer)
+            assert offer is not None
+
+            server_task = asyncio.create_task(server.run())
+            await asyncio.sleep(0.2)
+
+            redeem_url = (
+                f"http://127.0.0.1:{port}/v1/pair/redeem"
+                f"?code={quote(offer.code)}"
+                "&source=android"
+                "&device_id=android.pixel7.pairing"
+            )
+
+            try:
+                status, body = await asyncio.to_thread(_http_get_status_and_body, redeem_url)
+                self.assertEqual(status, HTTPStatus.OK)
+                payload = json.loads(body)
+                self.assertEqual(payload.get("token"), "phase8-test-token")
+                self.assertEqual(payload.get("ws_path"), "/v1/clipboard")
+                self.assertEqual(payload.get("port"), port)
+
+                second_status, second_body = await asyncio.to_thread(_http_get_status_and_body, redeem_url)
+                self.assertEqual(second_status, HTTPStatus.OK)
+                second_payload = json.loads(second_body)
+                self.assertEqual(second_payload.get("token"), "phase8-test-token")
+
+                redeem_url_other_device = (
+                    f"http://127.0.0.1:{port}/v1/pair/redeem"
+                    f"?code={quote(offer.code)}"
+                    "&source=android"
+                    "&device_id=android.pixel7.other"
+                )
+                third_status = await asyncio.to_thread(_http_get_error_status, redeem_url_other_device)
+                self.assertEqual(third_status, HTTPStatus.GONE)
+            finally:
+                server.stop()
+                await asyncio.wait_for(server_task, timeout=5)
+
     async def test_text_sync_survives_reconnect(self) -> None:
         logger = logging.getLogger("lan-runtime-test")
         logger.addHandler(logging.NullHandler())

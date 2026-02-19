@@ -4,12 +4,15 @@ import asyncio
 import base64
 import hashlib
 import json
+import secrets
 import signal
+import socket
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
@@ -41,6 +44,28 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
+PAIRING_REDEEM_REPLAY_WINDOW_SECONDS = 30
+
+
+def _infer_pairing_host(bind_host: str) -> str:
+    normalized = bind_host.strip().strip("[]")
+    if normalized and normalized not in {"0.0.0.0", "::", "::0"}:
+        return normalized
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("1.1.1.1", 80))
+            return str(sock.getsockname()[0])
+    except OSError:
+        return "127.0.0.1"
+
+
+@dataclass(slots=True, frozen=True)
+class PairingOffer:
+    deep_link: str
+    code: str
+    expires_at_ms: int
+
+
 class LanClipboardServer:
     """LAN daemon runtime for clipboard sync over WebSocket."""
 
@@ -56,6 +81,10 @@ class LanClipboardServer:
         advertise_mdns: bool = True,
         mdns_service_type: str = "_gumlet-clipboard._tcp",
         poll_interval: float = 0.4,
+        pairing_enabled: bool = True,
+        pairing_host: str = "",
+        pairing_code_ttl_seconds: int = 180,
+        pairing_redeem_path: str = "/v1/pair/redeem",
     ) -> None:
         self.host = host
         self.port = port
@@ -66,6 +95,15 @@ class LanClipboardServer:
         self.advertise_mdns = advertise_mdns
         self.mdns_service_type = mdns_service_type
         self.poller = ClipboardPoller(clipboard, poll_interval=poll_interval, logger=logger)
+        self.pairing_enabled = pairing_enabled
+        self.pairing_code_ttl_seconds = max(30, int(pairing_code_ttl_seconds))
+        normalized_redeem_path = pairing_redeem_path.strip() or "/v1/pair/redeem"
+        if not normalized_redeem_path.startswith("/"):
+            normalized_redeem_path = f"/{normalized_redeem_path}"
+        self.pairing_redeem_path = normalized_redeem_path
+        self.pairing_host = pairing_host.strip() if pairing_host.strip() else _infer_pairing_host(host)
+        self._pairing_codes: dict[str, int] = {}
+        self._consumed_pairing_codes: dict[str, tuple[int, str]] = {}
 
         self._stop_event = asyncio.Event()
         self._sessions_by_device: dict[str, set[ServerConnection]] = defaultdict(set)
@@ -128,10 +166,102 @@ class LanClipboardServer:
         self._prune_expired()
         return any(h == payload_hash for h, _ts in self._recent_remote_hashes)
 
+    def _prune_pairing_codes(self, now_ms: int | None = None) -> None:
+        now = _now_ms() if now_ms is None else now_ms
+        expired_codes = [code for code, expires_at_ms in self._pairing_codes.items() if expires_at_ms <= now]
+        for code in expired_codes:
+            self._pairing_codes.pop(code, None)
+        stale_consumed_codes = [
+            code for code, (replay_until_ms, _device_id) in self._consumed_pairing_codes.items()
+            if replay_until_ms <= now
+        ]
+        for code in stale_consumed_codes:
+            self._consumed_pairing_codes.pop(code, None)
+
+    def issue_pairing_offer(self) -> PairingOffer | None:
+        if not self.pairing_enabled:
+            return None
+        now_ms = _now_ms()
+        self._prune_pairing_codes(now_ms)
+        code = secrets.token_urlsafe(18)
+        expires_at_ms = now_ms + (self.pairing_code_ttl_seconds * 1000)
+        self._pairing_codes[code] = expires_at_ms
+        deep_link = self._build_pairing_deep_link(code)
+        return PairingOffer(
+            deep_link=deep_link,
+            code=code,
+            expires_at_ms=expires_at_ms,
+        )
+
+    def _build_pairing_deep_link(self, code: str) -> str:
+        query = urlencode(
+            {
+                "lan_pair_version": "1",
+                "lan_pair_host": self.pairing_host,
+                "lan_pair_port": str(self.port),
+                "lan_pair_code": code,
+                "lan_pair_redeem_path": self.pairing_redeem_path,
+            }
+        )
+        return f"ui://florisboard/settings/clipboard?{query}"
+
+    def _consume_pairing_code(self, code: str, device_id: str) -> str:
+        if not self.pairing_enabled or not code or not device_id:
+            return "invalid"
+        now_ms = _now_ms()
+        self._prune_pairing_codes(now_ms)
+        replay_state = self._consumed_pairing_codes.get(code)
+        if replay_state is not None:
+            replay_until_ms, replay_device_id = replay_state
+            if replay_until_ms > now_ms and replay_device_id == device_id:
+                return "replay"
+            if replay_until_ms > now_ms and replay_device_id != device_id:
+                return "invalid"
+        expires_at_ms = self._pairing_codes.pop(code, None)
+        if expires_at_ms is None or expires_at_ms <= now_ms:
+            return "invalid"
+        replay_until_ms = now_ms + (PAIRING_REDEEM_REPLAY_WINDOW_SECONDS * 1000)
+        self._consumed_pairing_codes[code] = (replay_until_ms, device_id)
+        return "accepted"
+
+    def _pairing_response_body(self) -> str:
+        payload = {
+            "protocol_version": "1",
+            "token": self.state_store.token,
+            "host": self.pairing_host,
+            "port": self.port,
+            "ws_path": self.path,
+            "service_id": self.state_store.service_identity,
+        }
+        return json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n"
+
+    async def _process_pairing_redeem(self, connection: ServerConnection, request_path: str):
+        if not self.pairing_enabled:
+            return connection.respond(HTTPStatus.NOT_FOUND, "PAIRING_DISABLED\n")
+
+        parsed = urlparse(request_path)
+        params = parse_qs(parsed.query)
+        code = params.get("code", [""])[0].strip()
+        if not code:
+            return connection.respond(HTTPStatus.BAD_REQUEST, "PAIRING_CODE_MISSING\n")
+        device_id = params.get("device_id", [""])[0].strip()
+        if not DEVICE_ID_PATTERN.fullmatch(device_id):
+            return connection.respond(HTTPStatus.BAD_REQUEST, "BAD_DEVICE_ID\n")
+
+        consume_result = self._consume_pairing_code(code, device_id)
+        if consume_result == "invalid":
+            return connection.respond(HTTPStatus.GONE, "PAIRING_CODE_INVALID\n")
+
+        return connection.respond(HTTPStatus.OK, self._pairing_response_body())
+
     async def _process_request(self, connection: ServerConnection, request):
-        if request.path == "/healthz":
+        parsed = urlparse(request.path)
+        request_path = parsed.path
+        if request_path == "/healthz":
             return connection.respond(HTTPStatus.OK, "OK\n")
-        if request.path != self.path:
+        if request_path == self.pairing_redeem_path:
+            return await self._process_pairing_redeem(connection, request.path)
+        if request_path != self.path:
             return connection.respond(HTTPStatus.NOT_FOUND, "NOT_FOUND\n")
 
         auth = request.headers.get("Authorization", "")
@@ -565,6 +695,7 @@ class LanClipboardServer:
                 "event": "daemon.start",
                 "mode": "lan",
                 "path": f"ws://{self.host}:{self.port}{self.path}",
+                "pairing_enabled": str(self.pairing_enabled).lower(),
             },
         )
 

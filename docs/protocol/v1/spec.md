@@ -23,6 +23,26 @@ This document is the shared data contract for FlorisBoard (Android) and macOS br
   - `X-Clipboard-Source: android|mac`
 - If auth fails, server rejects handshake (`401`) or closes the upgraded socket with close code `4401` and `AUTH_FAILURE`.
 
+### 2.1 Optional One-Time Pairing Bootstrap (v1 upgrade path)
+
+To avoid manual host/port/token entry, implementations may support a one-time
+pairing bootstrap:
+
+- QR payload carries only:
+  - bridge host
+  - bridge port
+  - short-lived single-use pairing code
+  - pairing redeem path (default `/v1/pair/redeem`)
+- Client calls HTTP redeem endpoint with pairing code.
+- Server validates code (TTL + single use) and returns token + websocket metadata.
+- Client stores returned token/config and proceeds with normal websocket auth.
+
+Security requirements for this bootstrap:
+
+- Pairing code MUST be one-time use.
+- Pairing code MUST expire quickly (recommended <= 180 seconds).
+- Pairing QR MUST NOT contain the long-lived token directly.
+
 ## 3. Message Envelope
 
 Every message on the socket is one JSON object with this envelope:

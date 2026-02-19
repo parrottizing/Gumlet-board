@@ -140,7 +140,7 @@
   - [x] height
   - [x] orientation
 - [x] Verify read/write behavior for images on both platforms.
-- [ ] Exit check: typical screenshots/photos sync both directions.
+- [x] Exit check: typical screenshots/photos sync both directions.
 
 ## Phase 8: QA, Hardening, Release
 - [ ] Build manual test matrix for Android 10-16.

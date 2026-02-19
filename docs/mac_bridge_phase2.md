@@ -36,6 +36,32 @@ Set/override token:
 python3 mac_bridge/sync_clipboard_adb_reference.py --mode=lan --token "<new-token>"
 ```
 
+## One-Time QR Pairing (v1 upgrade)
+
+LAN mode now emits a one-time pairing offer on startup:
+
+- a deep link: `ui://florisboard/settings/clipboard?...`
+- terminal ASCII QR (when `qrcode` is installed)
+- PNG QR at `~/.gumlet_clipboard_bridge/pairing_qr.png`
+
+The QR contains host/port + short-lived pairing code only (no long-lived token).
+Floris redeems the code once at `/v1/pair/redeem`, receives token/config, saves it,
+and reconnects automatically.
+
+Useful flags:
+
+```bash
+python3 mac_bridge/sync_clipboard_adb_reference.py --mode=lan \
+  --pairing-code-ttl-seconds 180 \
+  --pairing-qr-path ~/.gumlet_clipboard_bridge/pairing_qr.png
+```
+
+Disable one-time pairing if needed:
+
+```bash
+python3 mac_bridge/sync_clipboard_adb_reference.py --mode=lan --disable-pairing
+```
+
 ## Simulated Client Exit Check
 
 Install dependencies:
