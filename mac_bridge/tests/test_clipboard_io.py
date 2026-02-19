@@ -137,6 +137,41 @@ class ClipboardIoTests(unittest.TestCase):
         self.assertIs(actual, expected)
         prepare.assert_not_called()
 
+    def test_get_image_skips_finder_probe_when_direct_image_exists(self) -> None:
+        backend = MacClipboardBackend()
+        direct_image = _FakePILImage()
+        expected = ClipboardImage(
+            mime_type="image/png",
+            data=b"png",
+            width=1,
+            height=1,
+            orientation=0,
+            signature="sig",
+        )
+
+        fake_pil = types.ModuleType("PIL")
+        fake_pil.Image = types.SimpleNamespace(Image=_FakePILImage)
+        fake_pil.ImageGrab = types.SimpleNamespace(grabclipboard=lambda: direct_image)
+
+        with patch.dict(sys.modules, {"PIL": fake_pil}):
+            with patch(
+                "bridge.clipboard_io._clipboard_text_candidates",
+                return_value=[],
+            ) as text_candidates:
+                with patch("bridge.clipboard_io._finder_selected_path") as finder:
+                    with patch(
+                        "bridge.clipboard_io._prepare_clipboard_image",
+                        return_value=expected,
+                    ):
+                        actual = backend.get_image()
+
+        self.assertIs(actual, expected)
+        text_candidates.assert_called_once_with(
+            include_applescript_text=False,
+            include_file_url=False,
+        )
+        finder.assert_not_called()
+
     def test_finder_selection_requires_clipboard_match(self) -> None:
         finder_path = Path("/Users/example/Pictures/photo.png")
         self.assertFalse(

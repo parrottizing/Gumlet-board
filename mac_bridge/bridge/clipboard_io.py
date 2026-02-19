@@ -28,6 +28,8 @@ IMAGE_PATH_EXTENSIONS = {
     ".heic",
     ".heif",
 }
+APPLESCRIPT_QUERY_TIMEOUT_SECONDS = 1.0
+APPLESCRIPT_SET_CLIPBOARD_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,10 @@ class MacClipboardBackend:
                 if image is not None:
                     return image
 
-        text_candidates = _clipboard_text_candidates()
+        text_candidates = _clipboard_text_candidates(
+            include_applescript_text=direct_image is None,
+            include_file_url=direct_image is None,
+        )
         for text_candidate in text_candidates:
             path = _clipboard_text_to_path(text_candidate)
             if path is not None:
@@ -96,14 +101,15 @@ class MacClipboardBackend:
                 if image is not None:
                     return image
 
-        finder_path = _finder_selected_path()
-        if finder_path is not None and _finder_selection_matches_clipboard_candidates(
-            finder_path,
-            text_candidates,
-        ):
-            image = _load_clipboard_image_from_path(finder_path)
-            if image is not None:
-                return image
+        if direct_image is None:
+            finder_path = _finder_selected_path()
+            if finder_path is not None and _finder_selection_matches_clipboard_candidates(
+                finder_path,
+                text_candidates,
+            ):
+                image = _load_clipboard_image_from_path(finder_path)
+                if image is not None:
+                    return image
 
         # Fall back to raw image clipboard data after exhausting file references.
         if direct_image is not None:
@@ -326,7 +332,11 @@ def _compute_image_signature(image: Image.Image) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _clipboard_text_candidates() -> list[str]:
+def _clipboard_text_candidates(
+    *,
+    include_applescript_text: bool = True,
+    include_file_url: bool = True,
+) -> list[str]:
     candidates: list[str] = []
     try:
         import pyperclip
@@ -337,22 +347,25 @@ def _clipboard_text_candidates() -> list[str]:
     except Exception:
         pass
 
-    try:
-        result = subprocess.run(
-            ["osascript", "-e", "get the clipboard as text"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            candidates.append(result.stdout.strip())
-    except Exception:
-        pass
+    if include_applescript_text:
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", "get the clipboard as text"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=APPLESCRIPT_QUERY_TIMEOUT_SECONDS,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                candidates.append(result.stdout.strip())
+        except Exception:
+            pass
 
-    # Telegram and some apps expose file references via pasteboard file URL.
-    file_url_path = _clipboard_file_url_path()
-    if file_url_path is not None:
-        candidates.append(str(file_url_path))
+    if include_file_url:
+        # Telegram and some apps expose file references via pasteboard file URL.
+        file_url_path = _clipboard_file_url_path()
+        if file_url_path is not None:
+            candidates.append(str(file_url_path))
 
     seen: set[str] = set()
     deduped: list[str] = []
@@ -370,6 +383,7 @@ def _clipboard_file_url_path() -> Path | None:
             check=False,
             capture_output=True,
             text=True,
+            timeout=APPLESCRIPT_QUERY_TIMEOUT_SECONDS,
         )
         if result.returncode == 0 and result.stdout.strip():
             return Path(result.stdout.strip()).expanduser()
@@ -408,6 +422,7 @@ def _finder_selected_path() -> Path | None:
             check=False,
             capture_output=True,
             text=True,
+            timeout=APPLESCRIPT_QUERY_TIMEOUT_SECONDS,
         )
         if result.returncode == 0 and result.stdout.strip():
             return Path(result.stdout.strip()).expanduser()
@@ -460,6 +475,7 @@ def _set_clipboard_png_bytes(png_bytes: bytes) -> None:
             ["osascript", "-e", script],
             check=True,
             capture_output=True,
+            timeout=APPLESCRIPT_SET_CLIPBOARD_TIMEOUT_SECONDS,
         )
     finally:
         temp_path.unlink(missing_ok=True)
