@@ -78,8 +78,7 @@ class MacClipboardBackend:
             content = ImageGrab.grabclipboard()
         except Exception:
             content = None
-        if isinstance(content, Image.Image):
-            return _prepare_clipboard_image(content)
+        direct_image = content if isinstance(content, Image.Image) else None
 
         # Finder and some apps place file references on the clipboard.
         if isinstance(content, list):
@@ -106,6 +105,10 @@ class MacClipboardBackend:
             if image is not None:
                 return image
 
+        # Fall back to raw image clipboard data after exhausting file references.
+        if direct_image is not None:
+            return _prepare_clipboard_image(direct_image)
+
         return None
 
     def set_image(self, image: ClipboardImage) -> None:
@@ -117,9 +120,11 @@ class MacClipboardBackend:
         from PIL import Image, ImageOps
 
         with Image.open(io.BytesIO(image.data)) as opened:
+            exif_orientation = _extract_exif_orientation_degrees(opened)
             normalized = ImageOps.exif_transpose(opened)
-            if image.orientation in {90, 180, 270}:
+            if image.orientation in {90, 180, 270} and image.orientation != exif_orientation:
                 # Protocol orientation is clockwise, PIL rotate is counter-clockwise.
+                # Avoid double-rotation if EXIF already encodes the same transform.
                 normalized = normalized.rotate(-image.orientation, expand=True)
             output = io.BytesIO()
             normalized.save(output, format="PNG")
@@ -292,12 +297,32 @@ def _save_image_bytes(image: "Image.Image", format_name: str, **save_kwargs: obj
         return None
 
 
+def _extract_exif_orientation_degrees(image: "Image.Image") -> int:
+    try:
+        exif = image.getexif()
+    except Exception:
+        return 0
+    if not exif:
+        return 0
+    value = exif.get(0x0112)
+    if value == 3:
+        return 180
+    if value == 6:
+        return 90
+    if value == 8:
+        return 270
+    return 0
+
+
 def _compute_image_signature(image: Image.Image) -> str:
     thumb = image.copy()
     thumb.thumbnail((64, 64))
     if thumb.mode not in {"RGB", "RGBA"}:
         thumb = thumb.convert("RGBA")
-    payload = f"{thumb.size[0]}x{thumb.size[1]}".encode("utf-8") + thumb.tobytes()
+    payload = (
+        f"{image.size[0]}x{image.size[1]}|{thumb.size[0]}x{thumb.size[1]}".encode("utf-8")
+        + thumb.tobytes()
+    )
     return hashlib.sha256(payload).hexdigest()
 
 

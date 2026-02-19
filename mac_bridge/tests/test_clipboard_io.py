@@ -16,14 +16,24 @@ from bridge.clipboard_io import (
 
 
 class _FakePILImage:
+    def __init__(self, exif_orientation: int | None = None) -> None:
+        self.exif_orientation = exif_orientation
+        self.rotate_calls: list[int] = []
+
     def __enter__(self) -> "_FakePILImage":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         return False
 
+    def getexif(self) -> dict[int, int]:
+        if self.exif_orientation is None:
+            return {}
+        return {0x0112: self.exif_orientation}
+
     def rotate(self, _degrees: int, expand: bool = True) -> "_FakePILImage":
         _ = expand
+        self.rotate_calls.append(_degrees)
         return self
 
     def save(self, output, format: str) -> None:
@@ -51,6 +61,81 @@ class ClipboardIoTests(unittest.TestCase):
             with patch("bridge.clipboard_io._set_clipboard_png_bytes") as set_clipboard_bytes:
                 backend.set_image(image)
         set_clipboard_bytes.assert_called_once()
+
+    def test_set_image_skips_protocol_rotation_when_matching_exif_orientation(self) -> None:
+        backend = MacClipboardBackend()
+        image = ClipboardImage(
+            mime_type="image/jpeg",
+            data=b"not-a-real-jpeg",
+            width=10,
+            height=20,
+            orientation=90,
+            signature="sig",
+        )
+        fake_opened = _FakePILImage(exif_orientation=6)
+
+        fake_pil = types.ModuleType("PIL")
+        fake_pil.Image = types.SimpleNamespace(open=lambda _stream: fake_opened)
+        fake_pil.ImageOps = types.SimpleNamespace(exif_transpose=lambda opened: opened)
+
+        with patch.dict(sys.modules, {"PIL": fake_pil}):
+            with patch("bridge.clipboard_io._set_clipboard_png_bytes"):
+                backend.set_image(image)
+
+        self.assertEqual(fake_opened.rotate_calls, [])
+
+    def test_set_image_applies_protocol_rotation_without_exif_orientation(self) -> None:
+        backend = MacClipboardBackend()
+        image = ClipboardImage(
+            mime_type="image/jpeg",
+            data=b"not-a-real-jpeg",
+            width=10,
+            height=20,
+            orientation=90,
+            signature="sig",
+        )
+        fake_opened = _FakePILImage(exif_orientation=None)
+
+        fake_pil = types.ModuleType("PIL")
+        fake_pil.Image = types.SimpleNamespace(open=lambda _stream: fake_opened)
+        fake_pil.ImageOps = types.SimpleNamespace(exif_transpose=lambda opened: opened)
+
+        with patch.dict(sys.modules, {"PIL": fake_pil}):
+            with patch("bridge.clipboard_io._set_clipboard_png_bytes"):
+                backend.set_image(image)
+
+        self.assertEqual(fake_opened.rotate_calls, [-90])
+
+    def test_get_image_prefers_file_reference_over_direct_placeholder(self) -> None:
+        backend = MacClipboardBackend()
+        placeholder = _FakePILImage()
+        expected = ClipboardImage(
+            mime_type="image/png",
+            data=b"png",
+            width=1,
+            height=1,
+            orientation=0,
+            signature="sig",
+        )
+
+        fake_pil = types.ModuleType("PIL")
+        fake_pil.Image = types.SimpleNamespace(Image=_FakePILImage)
+        fake_pil.ImageGrab = types.SimpleNamespace(grabclipboard=lambda: placeholder)
+
+        with patch.dict(sys.modules, {"PIL": fake_pil}):
+            with patch(
+                "bridge.clipboard_io._clipboard_text_candidates",
+                return_value=["/Users/example/Pictures/photo.png"],
+            ):
+                with patch(
+                    "bridge.clipboard_io._load_clipboard_image_from_path",
+                    return_value=expected,
+                ):
+                    with patch("bridge.clipboard_io._prepare_clipboard_image") as prepare:
+                        actual = backend.get_image()
+
+        self.assertIs(actual, expected)
+        prepare.assert_not_called()
 
     def test_finder_selection_requires_clipboard_match(self) -> None:
         finder_path = Path("/Users/example/Pictures/photo.png")
