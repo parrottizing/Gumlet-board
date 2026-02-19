@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -12,6 +13,9 @@ PROTOCOL_VERSION = "1.0"
 STALE_EVENT_WINDOW_MS = 120_000
 SUPPORTED_EVENT_TYPES = {"set_text", "set_image", "ack", "error", "ping", "pong"}
 DEVICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{3,128}$")
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+ALLOWED_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+ALLOWED_IMAGE_ORIENTATIONS = {0, 90, 180, 270}
 
 
 @dataclass(slots=True)
@@ -169,6 +173,47 @@ def _validate_payload_for_type(envelope: Mapping[str, Any]) -> None:
             raise ProtocolError("BAD_MESSAGE", "set_text payload text must be a string")
         if "is_sensitive" in payload and not isinstance(payload["is_sensitive"], bool):
             raise ProtocolError("BAD_MESSAGE", "set_text is_sensitive must be boolean")
+    elif event_type == "set_image":
+        mime_type = payload.get("mime_type")
+        if not isinstance(mime_type, str):
+            raise ProtocolError("BAD_MESSAGE", "set_image payload mime_type must be a string")
+        normalized_mime_type = mime_type.strip().lower()
+        if normalized_mime_type == "image/jpg":
+            normalized_mime_type = "image/jpeg"
+        if normalized_mime_type not in ALLOWED_IMAGE_MIME_TYPES:
+            raise ProtocolError("UNSUPPORTED_TYPE", "set_image payload mime_type is unsupported")
+
+        byte_size = payload.get("byte_size")
+        if not isinstance(byte_size, int) or byte_size <= 0:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload byte_size must be a positive integer")
+        if byte_size > MAX_IMAGE_BYTES:
+            raise ProtocolError("PAYLOAD_TOO_LARGE", "set_image payload exceeds max byte_size")
+
+        data_base64 = payload.get("data_base64")
+        if not isinstance(data_base64, str) or not data_base64:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload data_base64 must be a non-empty string")
+        try:
+            decoded = base64.b64decode(data_base64, validate=True)
+        except Exception as exc:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload data_base64 is invalid") from exc
+        if len(decoded) != byte_size:
+            raise ProtocolError(
+                "BAD_MESSAGE",
+                "set_image payload byte_size does not match decoded length",
+            )
+        if len(decoded) > MAX_IMAGE_BYTES:
+            raise ProtocolError("PAYLOAD_TOO_LARGE", "set_image payload exceeds max decoded size")
+
+        width = payload.get("width")
+        height = payload.get("height")
+        if not isinstance(width, int) or width <= 0:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload width must be a positive integer")
+        if not isinstance(height, int) or height <= 0:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload height must be a positive integer")
+
+        orientation = payload.get("orientation")
+        if not isinstance(orientation, int) or orientation not in ALLOWED_IMAGE_ORIENTATIONS:
+            raise ProtocolError("BAD_MESSAGE", "set_image payload orientation is invalid")
     elif event_type == "ack":
         status = payload.get("status")
         if status not in {"accepted", "duplicate", "rejected"}:
@@ -191,4 +236,3 @@ def validate_event(envelope: Mapping[str, Any], received_at_ms: int | None = Non
     if envelope["payload_hash"] != calculated_hash:
         raise ProtocolError("HASH_MISMATCH", "payload_hash does not match payload")
     _validate_stale_event(envelope, received_at_ms if received_at_ms is not None else now_ms())
-

@@ -125,21 +125,21 @@
 - [x] Exit check: connection auto-recovers after routine disruptions.
 
 ## Phase 7: Image Sync (v2)
-- [ ] Define image payload rules and compression strategy (<= 10MB target).
-- [ ] Implement encode/decode pipeline.
-- [ ] Enforce guardrails:
-  - [ ] reject oversize payloads
-  - [ ] MIME whitelist
-- [ ] Support Mac clipboard extraction for common sources:
-  - [ ] Finder copy
-  - [ ] browser image copy
-  - [ ] Telegram/file-url clipboard formats
-  - [ ] gallery/media app outputs
-- [ ] Add image metadata fields:
-  - [ ] width
-  - [ ] height
-  - [ ] orientation
-- [ ] Verify read/write behavior for images on both platforms.
+- [x] Define image payload rules and compression strategy (<= 10MB target).
+- [x] Implement encode/decode pipeline.
+- [x] Enforce guardrails:
+  - [x] reject oversize payloads
+  - [x] MIME whitelist
+- [x] Support Mac clipboard extraction for common sources:
+  - [x] Finder copy
+  - [x] browser image copy
+  - [x] Telegram/file-url clipboard formats
+  - [x] gallery/media app outputs
+- [x] Add image metadata fields:
+  - [x] width
+  - [x] height
+  - [x] orientation
+- [x] Verify read/write behavior for images on both platforms.
 - [ ] Exit check: typical screenshots/photos sync both directions.
 
 ## Phase 8: QA, Hardening, Release

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
 import signal
 import time
@@ -12,7 +14,7 @@ from typing import Any
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
 
-from .clipboard_io import ClipboardBackend, ClipboardPoller
+from .clipboard_io import ClipboardBackend, ClipboardImage, ClipboardPoller
 from .event_normalizer import (
     DEVICE_ID_PATTERN,
     ProtocolError,
@@ -229,7 +231,42 @@ class LanClipboardServer:
             except ConnectionClosed:
                 continue
 
-    async def _on_local_clipboard_changed(self, text: str) -> None:
+    def _build_image_payload(self, image: ClipboardImage) -> dict[str, Any]:
+        return {
+            "mime_type": image.mime_type,
+            "byte_size": len(image.data),
+            "data_base64": base64.b64encode(image.data).decode("ascii"),
+            "width": image.width,
+            "height": image.height,
+            "orientation": image.orientation,
+        }
+
+    async def _broadcast_image(
+        self,
+        *,
+        image: ClipboardImage,
+        exclude: ServerConnection | None = None,
+    ) -> None:
+        payload = self._build_image_payload(image)
+        event = normalize_event(
+            device_id=self.state_store.service_identity,
+            source="mac",
+            event_type="set_image",
+            payload=payload,
+        )
+
+        async with self._session_lock:
+            connections = list(self._session_meta.keys())
+
+        for conn in connections:
+            if exclude is not None and conn is exclude:
+                continue
+            try:
+                await self._send_event(conn, event)
+            except ConnectionClosed:
+                continue
+
+    async def _on_local_text_changed(self, text: str) -> None:
         if not text.strip():
             return
         payload = {"mime_type": "text/plain", "text": text, "is_sensitive": False}
@@ -241,6 +278,17 @@ class LanClipboardServer:
             )
             return
         await self._broadcast_text(text=text)
+
+    async def _on_local_image_changed(self, image: ClipboardImage) -> None:
+        payload = self._build_image_payload(image)
+        payload_hash = compute_payload_hash(payload)
+        if self._is_recent_remote_hash(payload_hash):
+            self.logger.debug(
+                "Skipping local clipboard image echo",
+                extra={"event": "clipboard.local.image_echo_suppressed"},
+            )
+            return
+        await self._broadcast_image(image=image)
 
     async def _handle_set_text(
         self,
@@ -324,6 +372,101 @@ class LanClipboardServer:
             exclude=websocket,
         )
 
+    async def _handle_set_image(
+        self,
+        websocket: ServerConnection,
+        meta: SessionMeta,
+        envelope: dict[str, Any],
+    ) -> None:
+        event_id = envelope["event_id"]
+        payload_hash = envelope["payload_hash"]
+
+        if self._has_seen_event(meta.device_id, event_id):
+            ack = make_ack(
+                device_id=self.state_store.service_identity,
+                source="mac",
+                acked_event_id=event_id,
+                status="duplicate",
+            )
+            await self._send_event(websocket, ack)
+            return
+
+        payload = envelope["payload"]
+        if self._is_recent_remote_hash(payload_hash):
+            ack = make_ack(
+                device_id=self.state_store.service_identity,
+                source="mac",
+                acked_event_id=event_id,
+                status="duplicate",
+            )
+            await self._send_event(websocket, ack)
+            return
+
+        applied_payload_hash: str | None = None
+        try:
+            image_bytes = base64.b64decode(payload["data_base64"], validate=True)
+            image = ClipboardImage(
+                mime_type=str(payload["mime_type"]),
+                data=image_bytes,
+                width=int(payload["width"]),
+                height=int(payload["height"]),
+                orientation=int(payload["orientation"]),
+                signature=hashlib.sha256(image_bytes).hexdigest(),
+            )
+            self.clipboard.set_image(image)
+            try:
+                applied_image = self.clipboard.get_image()
+            except Exception:
+                applied_image = None
+            if applied_image is not None:
+                applied_payload_hash = compute_payload_hash(self._build_image_payload(applied_image))
+        except Exception as exc:
+            ack = make_ack(
+                device_id=self.state_store.service_identity,
+                source="mac",
+                acked_event_id=event_id,
+                status="rejected",
+                error_code="TEMPORARY_UNAVAILABLE",
+            )
+            await self._send_event(websocket, ack)
+            error_event = make_error(
+                device_id=self.state_store.service_identity,
+                source="mac",
+                code="TEMPORARY_UNAVAILABLE",
+                message="Failed to write local clipboard image",
+                retryable=True,
+            )
+            await self._send_event(websocket, error_event)
+            self.logger.warning(
+                "Failed applying inbound clipboard image",
+                extra={
+                    "event": "clipboard.inbound.image_apply_failed",
+                    "device_id": meta.device_id,
+                    "event_id": event_id,
+                },
+                exc_info=exc,
+            )
+            return
+
+        self._mark_seen_event(meta.device_id, event_id)
+        self._mark_remote_hash(payload_hash)
+        if applied_payload_hash is not None and applied_payload_hash != payload_hash:
+            self._mark_remote_hash(applied_payload_hash)
+        self.state_store.update_device_sync_state(
+            meta.device_id,
+            last_event_id=event_id,
+            last_payload_hash=payload_hash,
+        )
+
+        ack = make_ack(
+            device_id=self.state_store.service_identity,
+            source="mac",
+            acked_event_id=event_id,
+            status="accepted",
+        )
+        await self._send_event(websocket, ack)
+        await self._broadcast_image(image=image, exclude=websocket)
+
     async def _handle_message(
         self,
         websocket: ServerConnection,
@@ -370,21 +513,7 @@ class LanClipboardServer:
             return
 
         if event_type == "set_image":
-            ack = make_ack(
-                device_id=self.state_store.service_identity,
-                source="mac",
-                acked_event_id=envelope["event_id"],
-                status="rejected",
-                error_code="UNSUPPORTED_TYPE",
-            )
-            await self._send_event(websocket, ack)
-            error_event = make_error(
-                device_id=self.state_store.service_identity,
-                source="mac",
-                code="UNSUPPORTED_TYPE",
-                message="set_image is disabled in v1 mode",
-            )
-            await self._send_event(websocket, error_event)
+            await self._handle_set_image(websocket, meta, envelope)
             return
 
         # Ack/error/pong from clients can be ignored at daemon side.
@@ -448,10 +577,14 @@ class LanClipboardServer:
                 process_request=self._process_request,
                 ping_interval=20,
                 ping_timeout=20,
-                max_size=11 * 1024 * 1024,
+                max_size=16 * 1024 * 1024,
             ):
                 poller_task = asyncio.create_task(
-                    self.poller.run(self._on_local_clipboard_changed, self._stop_event)
+                    self.poller.run(
+                        self._on_local_text_changed,
+                        self._on_local_image_changed,
+                        self._stop_event,
+                    )
                 )
                 await self._stop_event.wait()
         finally:
@@ -466,4 +599,3 @@ class LanClipboardServer:
                 "LAN clipboard daemon stopped",
                 extra={"event": "daemon.stop", "mode": "lan"},
             )
-
