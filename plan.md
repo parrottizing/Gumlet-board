@@ -100,15 +100,15 @@
 - [x] Exit check: Mac text copy reaches Android without ping-pong loops.
 
 ## Phase 6: Reliability and Lifecycle
-- [ ] Implement Mode A reliably (IME lifecycle-managed connection).
-- [ ] Handle lifecycle transitions:
-  - [ ] screen lock/unlock
-  - [ ] network changes
-  - [ ] process restart
-- [ ] Add safe degradation UX:
-  - [ ] disconnected status
-  - [ ] manual reconnect action
-- [ ] Exit check: connection auto-recovers after routine disruptions.
+- [x] Implement Mode A reliably (IME lifecycle-managed connection).
+- [x] Handle lifecycle transitions:
+  - [x] screen lock/unlock
+  - [x] network changes
+  - [x] process restart
+- [x] Add safe degradation UX:
+  - [x] disconnected status
+  - [x] manual reconnect action
+- [x] Exit check: connection auto-recovers after routine disruptions.
 
 ## Phase 7: Image Sync (v2)
 - [ ] Define image payload rules and compression strategy (<= 10MB target).
