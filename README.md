@@ -19,5 +19,6 @@ Pairing:
 Run LAN bridge:
 
 ```bash
+cd Gumlet-board
 ./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --mode=lan
 ```
