@@ -62,6 +62,20 @@ Disable one-time pairing if needed:
 python3 mac_bridge/sync_clipboard_adb_reference.py --mode=lan --disable-pairing
 ```
 
+## macOS Autostart
+
+Install a per-user launchd agent so the LAN bridge stays available after login:
+
+```bash
+./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --install-launch-agent
+```
+
+Remove it:
+
+```bash
+./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --uninstall-launch-agent
+```
+
 ## Simulated Client Exit Check
 
 Install dependencies:

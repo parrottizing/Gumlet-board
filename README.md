@@ -22,3 +22,10 @@ Run LAN bridge:
 cd Gumlet-board
 ./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --mode=lan
 ```
+
+Install always-on macOS launch agent:
+
+```bash
+cd Gumlet-board
+./.venv/bin/python mac_bridge/sync_clipboard_adb_reference.py --install-launch-agent
+```

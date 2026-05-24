@@ -4,10 +4,19 @@ from __future__ import annotations
 import argparse
 import asyncio
 import io
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from bridge.clipboard_io import MacClipboardBackend
+from bridge.launch_agent import (
+    LAUNCH_AGENT_LABEL,
+    install_launch_agent,
+    launch_agent_domain,
+    launch_agent_plist_path,
+    render_launch_agent_plist,
+    uninstall_launch_agent,
+)
 from bridge.logging_utils import configure_logging
 from bridge.state_store import StateStore
 
@@ -15,6 +24,8 @@ DEFAULT_RUNTIME_DIR = Path.home() / ".gumlet_clipboard_bridge"
 DEFAULT_STATE_PATH = DEFAULT_RUNTIME_DIR / "state.json"
 DEFAULT_LOG_DIR = DEFAULT_RUNTIME_DIR / "logs"
 DEFAULT_PAIRING_QR_PATH = DEFAULT_RUNTIME_DIR / "pairing_qr.png"
+DEFAULT_LAUNCHD_STDOUT_PATH = DEFAULT_LOG_DIR / "launchd.stdout.log"
+DEFAULT_LAUNCHD_STDERR_PATH = DEFAULT_LOG_DIR / "launchd.stderr.log"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -100,6 +111,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_PAIRING_QR_PATH,
         help="Path to write startup pairing QR image PNG.",
     )
+    parser.add_argument(
+        "--install-launch-agent",
+        action="store_true",
+        help="Install/update a per-user launchd agent for always-on LAN mode.",
+    )
+    parser.add_argument(
+        "--uninstall-launch-agent",
+        action="store_true",
+        help="Remove the per-user launchd agent for always-on LAN mode.",
+    )
+    parser.add_argument(
+        "--print-launch-agent-plist-path",
+        action="store_true",
+        help="Print the launchd plist path used for always-on LAN mode and exit.",
+    )
     return parser
 
 
@@ -183,8 +209,83 @@ def run_lan_mode(args: argparse.Namespace, state_store: StateStore, logger) -> N
     asyncio.run(server.run())
 
 
+def _launch_agent_program_arguments(args: argparse.Namespace) -> list[str]:
+    program_args = [
+        "--mode=lan",
+        "--state-path",
+        str(args.state_path),
+        "--log-dir",
+        str(args.log_dir),
+        "--log-level",
+        args.log_level,
+        "--host",
+        args.host,
+        "--port",
+        str(args.port),
+        "--path",
+        args.path,
+        "--service-type",
+        args.service_type,
+        "--poll-interval",
+        str(args.poll_interval),
+        "--pairing-code-ttl-seconds",
+        str(args.pairing_code_ttl_seconds),
+        "--pairing-qr-path",
+        str(args.pairing_qr_path),
+    ]
+    if args.disable_mdns:
+        program_args.append("--disable-mdns")
+    if args.disable_pairing:
+        program_args.append("--disable-pairing")
+    if args.pairing_host:
+        program_args.extend(["--pairing-host", args.pairing_host])
+    return program_args
+
+
+def handle_launch_agent_command(args: argparse.Namespace) -> bool:
+    if not (args.install_launch_agent or args.uninstall_launch_agent or args.print_launch_agent_plist_path):
+        return False
+
+    plist_path = launch_agent_plist_path()
+    if args.print_launch_agent_plist_path:
+        print(plist_path)
+        return True
+
+    domain = launch_agent_domain()
+    if args.uninstall_launch_agent:
+        uninstall_launch_agent(plist_path=plist_path, domain=domain)
+        print(f"Removed launch agent {LAUNCH_AGENT_LABEL}")
+        return True
+
+    stdout_path = DEFAULT_LAUNCHD_STDOUT_PATH
+    stderr_path = DEFAULT_LAUNCHD_STDERR_PATH
+    stdout_path.parent.mkdir(parents=True, exist_ok=True)
+    stderr_path.parent.mkdir(parents=True, exist_ok=True)
+    entrypoint_path = Path(__file__).resolve()
+    working_directory = entrypoint_path.parent.parent.resolve()
+    plist_bytes = render_launch_agent_plist(
+        python_path=Path(sys.executable).resolve(),
+        entrypoint_path=entrypoint_path,
+        working_directory=working_directory,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        program_arguments=_launch_agent_program_arguments(args),
+    )
+    install_launch_agent(
+        plist_path=plist_path,
+        plist_bytes=plist_bytes,
+        domain=domain,
+    )
+    print(f"Installed launch agent {LAUNCH_AGENT_LABEL}")
+    print(f"Plist: {plist_path}")
+    return True
+
+
 def main() -> None:
     args = build_parser().parse_args()
+    if handle_launch_agent_command(args):
+        return
+
     logger = configure_logging("gumlet.mac_bridge", args.log_dir, level=args.log_level)
     state_store = StateStore(args.state_path, logger=logger)
 
