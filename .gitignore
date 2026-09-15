@@ -3,3 +3,17 @@
 __pycache__/
 *.pyc
 *.log
+*.log.*
+/.local-agent-guidance.md
+.env
+.env.*
+!.env.example
+.gumlet_clipboard_bridge/
+state.json
+pairing_qr.png
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
