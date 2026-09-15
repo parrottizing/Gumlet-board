@@ -6,6 +6,12 @@ Umbrella repo for:
 
 This project is the LAN-sync experiment while keeping the ADB workflow as fallback.
 
+## License
+
+The original code in this repository is licensed under [Apache-2.0](LICENSE).
+The FlorisBoard submodule retains its [existing license](florisboard/LICENSE)
+and third-party notices; third-party components remain under their respective licenses.
+
 Protocol docs:
 
 - `docs/protocol/v1/spec.md`
